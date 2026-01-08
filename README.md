@@ -1,5 +1,12 @@
 ![](pic/ansible_logo.png)
 
+Содержимое директории **ansible** (standart)
+```
+ansible/
+├── inventory.ini
+└── playbook.yml
+```
+
 Содержимое файла **inventory.ini**
 ```ini
 [serv]
