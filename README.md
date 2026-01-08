@@ -1,5 +1,3 @@
-# Ansible
-
 ![](pic/ansible_logo.png)
 
 Содержимое файла **inventory.ini**
