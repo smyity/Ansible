@@ -1,0 +1,7 @@
+- name: Test
+  hosts: serv
+  become: true
+
+  tasks:
+    - name: test ping
+      ping:

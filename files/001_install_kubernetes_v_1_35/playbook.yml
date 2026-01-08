@@ -1,0 +1,95 @@
+- name: Install Kubernetes cluster for NODs
+  hosts: serv
+  become: true
+
+  tasks:
+    - name: tast ping
+      ping:
+
+    - name: switch IP forwarding
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - name: Update cache
+      apt:
+        update_cache: yes
+
+    - name: Set depends for add repo
+      ansible.builtin.apt:
+        name: [software-properties-common, curl]
+        state: present
+
+    - name: Add repo Kubernetes (v1.35)
+      ansible.builtin.deb822_repository:
+        name: kubernetes
+        types: [deb]
+        uris: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/"
+        suites: [/]
+        signed_by: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key" # Сохраняет ключ в надежное место (обычно /etc/apt/keyrings/<name>.gpg или внутри самого файла .sources)
+        state: present
+        enabled: true
+
+    - name: Add repo CRI-O (v1.35) # источник для deb пакетов https://kubernetes.io/blog/2023/10/10/cri-o-community-package-infrastructure/#deb-based-distributions
+      ansible.builtin.deb822_repository:
+        name: CRI-O
+        types: [deb]
+        uris: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/"
+        suites: [/]
+        signed_by: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/Release.key"
+        state: present
+        enabled: true
+
+    - name: Install kubeadm
+      ansible.builtin.apt:
+        name: [apt-transport-https, ca-certificates, gpg, kubelet, kubeadm, kubectl, cri-o]
+        state: present
+        update_cache: yes # sudo apt update
+
+    - name: Fix Kubernetes packages version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [kubelet, kubeadm, kubectl, cri-o]
+
+    - name: Ensure CRI-O is started and enabled
+      ansible.builtin.systemd:
+        name: crio
+        state: started
+        enabled: true
+
+    - name: Switch off Swap now
+      ansible.builtin.command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Del Swap in fstab (forever)
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+.*)$'
+        replace: '# \1'
+
+    - name: Load core modules now
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - br_netfilter
+        - overlay
+
+    - name: Set autoload modules
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: '0644'
+
+    - name: launch and swich on CRI-O
+      ansible.builtin.systemd:
+        name: crio
+        state: started
+        enabled: true
+        masked: false
