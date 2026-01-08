@@ -11,6 +11,6 @@ ansible-playbook -i inventory.ini playbook.yml
 ```
 
 [Установка Kubernetes (kubeadm, kubectl, kubelet)](files/001_install_kubernetes_v_1_35/playbook.yml)\
-[Проверка серверов (Ping)](files/002_ping/playbook.yml)\
+[Проверка серверов (Ping)](files/002_ping/playbook.yml)
 
 [ПРАВИЛА ОФОРМЛЕНИЯ ФАЙЛА README.MD](https://docs.github.com/ru/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
