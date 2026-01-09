@@ -1,0 +1,184 @@
+- name: Install Kubernetes cluster for NODs
+  hosts: all
+  become: true
+
+  tasks:
+    - name: tast ping
+      ping:
+
+    - name: switch IP forwarding
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - name: Update cache
+      apt:
+        update_cache: yes
+
+    - name: Set depends for add repo
+      ansible.builtin.apt:
+        name: [software-properties-common, curl]
+        state: present
+
+    - name: Add repo Kubernetes (v1.35)
+      ansible.builtin.deb822_repository:
+        name: kubernetes
+        types: [deb]
+        uris: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/"
+        suites: [/]
+        signed_by: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key" # Сохраняет ключ в надежное место (обычно /etc/apt/keyrings/<name>.gpg или внутри самого файла .sources)
+        state: present
+        enabled: true
+
+    - name: Add repo CRI-O (v1.35) # источник для deb пакетов https://kubernetes.io/blog/2023/10/10/cri-o-community-package-infrastructure/#deb-based-distributions
+      ansible.builtin.deb822_repository:
+        name: CRI-O
+        types: [deb]
+        uris: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/"
+        suites: [/]
+        signed_by: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/Release.key"
+        state: present
+        enabled: true
+
+    - name: Install kubeadm
+      ansible.builtin.apt:
+        name: [apt-transport-https, ca-certificates, gpg, kubelet, kubeadm, kubectl, cri-o]
+        state: present
+        update_cache: yes # sudo apt update
+
+    - name: Fix Kubernetes packages version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [kubelet, kubeadm, kubectl, cri-o]
+
+    - name: Ensure CRI-O is started and enabled
+      ansible.builtin.systemd:
+        name: crio
+        state: started
+        enabled: true
+
+    - name: Switch off Swap now
+      ansible.builtin.command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Del Swap in fstab (forever)
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+.*)$'
+        replace: '# \1'
+
+    - name: Load core modules now
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - br_netfilter
+        - overlay
+
+    - name: Set autoload modules
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: '0644'
+
+    - name: launch and swich on CRI-O
+      ansible.builtin.systemd:
+        name: crio
+        state: started
+        enabled: true
+        masked: false
+
+    - name: Autocompletion kubectl
+      ansible.builtin.shell: |
+        source <(kubectl completion bash)
+        echo "source <(kubectl completion bash)" >> ~/.bashrc
+      args:
+        executable: /bin/bash
+
+- name: Setting bastion
+  hosts: bastion
+  become: true
+
+  tasks:
+    - name: Init master-node
+      ansible.builtin.shell: |
+        kubeadm init --pod-network-cidr=10.244.0.0/16 > /tmp/kubeinit
+      args:
+        # Скрипт запустится ТОЛЬКО если файла нет
+        creates: /etc/kubernetes/admin.conf
+      register: kubeinit_result
+
+    - name: Create file with join command
+      ansible.builtin.shell: |
+        cat /tmp/kubeinit | tail -n 2 > /tmp/join_command
+      when: kubeinit_result.changed  # Выполнится только если kubeadm init сработал
+
+    - name: Del temp file
+      ansible.builtin.file:
+        path: /tmp/kubeinit
+        state: absent
+      when: kubeinit_result.changed  # Выполнится только если kubeadm init сработал
+
+- name: Copy file from bastion on other servers
+  hosts: all
+  tasks:
+    - name: Download file from bastion
+      fetch:
+        src: /tmp/join_command
+        dest: /tmp/
+        flat: yes
+      when: inventory_hostname == "bastion"
+
+    - name: Download file on servers
+      copy:
+        src: /tmp/join_command
+        dest: /tmp/
+      when: inventory_hostname != "bastion"
+
+- name: Run the commands as a regular user for start using cluster
+  hosts: bastion
+  become: true
+  become_user: osho
+  tasks:
+    - name: Create files
+      ansible.builtin.shell: |
+        mkdir -p $HOME/.kube
+        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $(id -u):$(id -g) $HOME/.kube/config
+      args:
+        # Скрипт запустится ТОЛЬКО если файла нет
+        creates: /etc/kubernetes/admin.conf
+
+- name: Flannel
+  hosts: bastion
+  become: true
+
+  tasks:
+    - name: Проверка наличия Flannel в кластере
+      shell: "kubectl get pods -A --kubeconfig=/etc/kubernetes/admin.conf | grep kube-flannel"
+      register: flannel_check
+      ignore_errors: true  # Не останавливать playbook, если есть ошибка
+      changed_when: false  # Чтобы задача не помечалась как "изменено"
+
+    - name: Installing flannel
+      ansible.builtin.shell: |
+        kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+      when: flannel_check.rc != 0
+
+- name: bash-script without creating
+  hosts: all
+  become: true
+  tasks:
+    - name:
+      ansible.builtin.shell: bash /tmp/join_command
+      args:
+        executable: /bin/bash
+        # Скрипт запустится ТОЛЬКО если узел еще не в кластере
+        creates: /etc/kubernetes/kubelet.conf 
+      when: inventory_hostname != "bastion"
