@@ -108,7 +108,7 @@
   tasks:
     - name: Init master-node
       ansible.builtin.shell: |
-        kubeadm init --pod-network-cidr=10.244.0.0/16 > /tmp/kubeinit
+        kubeadm init --pod-network-cidr=10.244.0.0/16
       args:
         # Скрипт запустится ТОЛЬКО если файла нет
         creates: /etc/kubernetes/admin.conf
@@ -121,8 +121,8 @@
       ansible.builtin.file:
         path: "/home/osho/.kube"
         state: directory
-        owner: osho
-        group: osho
+        owner: osho # !!! ЗАМЕНИТЬ НА СВОЕГО ПОЛЬЗОВАТЕЛЯ !!!
+        group: osho # !!! ЗАМЕНИТЬ НА СВОЕГО ПОЛЬЗОВАТЕЛЯ !!!
         mode: '0755'
 
     - name: Copy admin.conf to osho home dir
@@ -130,8 +130,8 @@
         src: /etc/kubernetes/admin.conf
         dest: /home/osho/.kube/config
         remote_src: yes  # Копируем внутри сервера
-        owner: osho
-        group: osho
+        owner: osho # !!! ЗАМЕНИТЬ НА СВОЕГО ПОЛЬЗОВАТЕЛЯ !!!
+        group: osho # !!! ЗАМЕНИТЬ НА СВОЕГО ПОЛЬЗОВАТЕЛЯ !!!
         mode: '0600'
 
 - name: Flannel
