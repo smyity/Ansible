@@ -112,48 +112,27 @@
       args:
         # Скрипт запустится ТОЛЬКО если файла нет
         creates: /etc/kubernetes/admin.conf
-      register: kubeinit_result
-
-    - name: Create file with join command
-      ansible.builtin.shell: |
-        cat /tmp/kubeinit | tail -n 2 > /tmp/join_command
-      when: kubeinit_result.changed  # Выполнится только если kubeadm init сработал
-
-    - name: Del temp file
-      ansible.builtin.file:
-        path: /tmp/kubeinit
-        state: absent
-      when: kubeinit_result.changed  # Выполнится только если kubeadm init сработал
-
-- name: Copy file from bastion on other servers
-  hosts: all
-  tasks:
-    - name: Download file from bastion
-      fetch:
-        src: /tmp/join_command
-        dest: /tmp/
-        flat: yes
-      when: inventory_hostname == "bastion"
-
-    - name: Download file on servers
-      copy:
-        src: /tmp/join_command
-        dest: /tmp/
-      when: inventory_hostname != "bastion"
 
 - name: Run the commands as a regular user for start using cluster
   hosts: bastion
   become: true
-  become_user: osho
   tasks:
-    - name: Create files
-      ansible.builtin.shell: |
-        mkdir -p $HOME/.kube
-        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-        sudo chown $(id -u):$(id -g) $HOME/.kube/config
-      args:
-        # Скрипт запустится ТОЛЬКО если файла нет
-        creates: /etc/kubernetes/admin.conf
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: "/home/osho/.kube"
+        state: directory
+        owner: osho
+        group: osho
+        mode: '0755'
+
+    - name: Copy admin.conf to osho home dir
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/osho/.kube/config
+        remote_src: yes  # Копируем внутри сервера
+        owner: osho
+        group: osho
+        mode: '0600'
 
 - name: Flannel
   hosts: bastion
@@ -170,15 +149,52 @@
       ansible.builtin.shell: |
         kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
       when: flannel_check.rc != 0
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
 
-- name: bash-script without creating
+- name: Join worker-nodes
   hosts: all
   become: true
+
   tasks:
-    - name:
-      ansible.builtin.shell: bash /tmp/join_command
+    - name: Gen join command on master-node
+      ansible.builtin.command: kubeadm token create --print-join-command
+      register: join_command_raw # Сохранение вывода команды kubeadm (ту самую строку kubeadm join 192.168...) в переменную только на мастере
+      when: inventory_hostname == "bastion"
+
+    - name: Сохранить команду в факт
+      ansible.builtin.set_fact:
+        kubernetes_join_command: "{{ join_command_raw.stdout }}"
+      when: inventory_hostname == "bastion"
+
+    - name: Присоединяем воркеры к кластеру
+      ansible.builtin.shell: "{{ hostvars['bastion']['kubernetes_join_command'] }}" # Воркеры «заглядывают» в память мастера (primary), чтобы забрать сохраненный текст команды 'kubernetes_join_command' т.е. 'join_command_raw' <-- 'kubeadm token create --print-join-command'
       args:
-        executable: /bin/bash
-        # Скрипт запустится ТОЛЬКО если узел еще не в кластере
-        creates: /etc/kubernetes/kubelet.conf 
-      when: inventory_hostname != "bastion"
+        creates: /etc/kubernetes/kubelet.conf # Не запускать, если уже в кластере
+      when: 
+        - inventory_hostname != "bastion"
+
+- name: Install Helm
+  hosts: bastion
+  become: true
+  tasks:
+    - name: Dow and unzip Helm in temp dir
+      # 'unarchive' заменяет 'wget' и 'tar': этот модуль умеет сам скачивать архив по ссылке и сразу распаковывать его
+      ansible.builtin.unarchive:
+        src: https://get.helm.sh/helm-v4.0.4-linux-amd64.tar.gz
+        dest: /tmp
+        remote_src: yes # Указывает, что скачиваем прямо на сервер
+        creates: /usr/local/bin/helm # Не запускать, если helm уже установлен
+
+    - name: Move file in /usr/local/bin
+      ansible.builtin.copy:
+        src: /tmp/linux-amd64/helm
+        dest: /usr/local/bin/helm
+        mode: '0755'
+        remote_src: yes
+      when: not ansible_check_mode # Выполнять только если файл был скачан: переменная 'ansible_check_mode' — это встроенная переменная Ansible
+
+    - name: Del temporary dir
+      ansible.builtin.file:
+        path: /tmp/linux-amd64
+        state: absent
