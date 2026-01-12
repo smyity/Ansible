@@ -162,12 +162,12 @@
       register: join_command_raw # Сохранение вывода команды kubeadm (ту самую строку kubeadm join 192.168...) в переменную только на мастере
       when: inventory_hostname == "bastion"
 
-    - name: Сохранить команду в факт
+    - name: Save command in ansible facts
       ansible.builtin.set_fact:
         kubernetes_join_command: "{{ join_command_raw.stdout }}"
       when: inventory_hostname == "bastion"
 
-    - name: Присоединяем воркеры к кластеру
+    - name: Join worker in the cluster
       ansible.builtin.shell: "{{ hostvars['bastion']['kubernetes_join_command'] }}" # Воркеры «заглядывают» в память мастера (primary), чтобы забрать сохраненный текст команды 'kubernetes_join_command' т.е. 'join_command_raw' <-- 'kubeadm token create --print-join-command'
       args:
         creates: /etc/kubernetes/kubelet.conf # Не запускать, если уже в кластере
