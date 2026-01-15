@@ -40,6 +40,12 @@ ansible/
 
 В **playbook.yml** вставить переменную
 ```yaml
+- name: Test
+  hosts: all
+  become: true
+  vars_files: # Добавить файл с переменными
+    - secrets.yml
+
 password: "{{ ПЕРЕМЕННАЯ }}"
 ```
 

@@ -1,6 +1,9 @@
 - name: Установка Zabbix v7.4 server, agent Ubuntu 22.04
   hosts: all
   become: true
+  # Если используется Vault!
+  vars_files:
+    - secrets.yml
 
   tasks:
     - name: Тест ping
