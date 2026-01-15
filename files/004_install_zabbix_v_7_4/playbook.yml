@@ -1,0 +1,108 @@
+- name: Установка Zabbix v7.4 server, agent Ubuntu 22.04
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Тест ping
+      ping:
+
+    - name: 1. Обновление cache
+      apt:
+        update_cache: yes
+
+    - name: 2. Установка PostgreSQL
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+
+    - name: 3. Скачивание установочного пакета v 7.4
+      get_url:
+        url: https://repo.zabbix.com/zabbix/7.4/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+        dest: /tmp/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+
+    - name: 4. Установка пакета репозитория через dpkg
+      apt:
+        deb: /tmp/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+        state: present
+      register: apt_res
+      failed_when:
+        - apt_res.failed 
+        - "'later version is already installed' not in apt_res.msg"
+
+    - name: 5. Обновление cache
+      apt:
+        update_cache: yes
+
+    - name: 6. Установка Zabbix server, frontend, agent
+      ansible.builtin.apt:
+        name:
+          - zabbix-server-pgsql
+          - zabbix-frontend-php
+          - php8.1-pgsql
+          - zabbix-apache-conf
+          - zabbix-sql-scripts
+          - zabbix-agent
+          - acl # для управления временными файлами при смене пользователя (в задаче "8. Создание пользователя zabbix")
+        state: present
+
+    - name: 7. Установка зависимости для модулей postgresql
+    # Нужно для того, чтобы модули ansible могли общаться с базой данных посредством Python-скриптов, которые Ansible копирует на удаленный сервер и запускает там
+      apt:
+        name: python3-psycopg2
+        state: present
+
+    - name: 8. Создание пользователя zabbix
+      community.postgresql.postgresql_user:
+        name: zabbix
+        password: "{{ zabbix_db_password }}"
+        state: present
+      become_user: postgres
+
+    - name: 9. Создание базы данных zabbix
+      community.postgresql.postgresql_db:
+        name: zabbix
+        owner: zabbix
+        state: present
+      become_user: postgres
+
+    # Проверка, инициализирована ли БД
+    - name: 10. Проверка наличия таблиц в базе zabbix
+      command: sudo -u postgres psql zabbix -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users');"
+      register: check_db
+      changed_when: false
+
+    # Регистрация переменной
+    - name: 11. Установка факта инициализации
+      set_fact:
+        db_already_initialized: "{{ check_db.stdout == 't' }}"
+
+    - name: Вывод состояния переменных
+      debug:
+        msg: 
+          - "Результат сырого вывода SQL: {{ check_db.stdout }}"
+          - "База уже инициализирована? {{ db_already_initialized }}"
+
+    - name: 12. Импорт схемы базы данных Zabbix
+      shell: |
+        zcat /usr/share/zabbix/sql-scripts/postgresql/server.sql.gz | sudo -u zabbix psql zabbix
+      # Выполнять только если база пустая (проверка наличия таблицы 'users'), это предотвратит ошибки при повторном запуске плейбука
+      when: not db_already_initialized
+      
+    - name: 13. Установка пароля базы данных в конфиге Zabbix
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^#? ?DBPassword='
+        line: 'DBPassword={{ zabbix_db_password }}'
+        state: present
+
+    - name: 14. Перезапуск и включение сервисов Zabbix и Apache
+      systemd:
+        name: "{{ item }}"
+        state: restarted # аналог systemctl restart
+        enabled: yes # аналог systemctl enable
+      loop:
+        - zabbix-server
+        - apache2
+        - zabbix-agent
