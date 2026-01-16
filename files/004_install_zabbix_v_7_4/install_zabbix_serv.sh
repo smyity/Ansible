@@ -40,14 +40,10 @@ ssh -q -t -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_SERVER << 'EOF' > /de
     echo "[+] Настройка базы данных" >&2
 
     # Проверка существования пользователя/базы, чтобы скрипт был идемпотентным (не выдавал ошибок при повторе)
-    sudo -E -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'zabbix'" | grep -q 1 || \
-    sudo -E -u postgres psql -c "CREATE USER zabbix WITH PASSWORD '123456789';"
-    
-    sudo -E -u postgres psql -lqt | cut -d \| -f 1 | grep -qw zabbix || \
-    sudo -E -u postgres psql -c "CREATE DATABASE zabbix OWNER zabbix;"
+    sudo -E -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'zabbix'" | grep -q 1 || sudo -E -u postgres psql -c "CREATE USER zabbix WITH PASSWORD '123456789';"
+    sudo -E -u postgres psql -lqt | cut -d \| -f 1 | grep -qw zabbix || sudo -E -u postgres psql -c "CREATE DATABASE zabbix OWNER zabbix;"
 
     echo "[+] Импорт схемы данных" >&2
-
     comm=$(sudo -u postgres psql zabbix -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users');")
     if [[ "$comm" != "t" ]]; then
         zcat /usr/share/zabbix/sql-scripts/postgresql/server.sql.gz | sudo -u zabbix psql zabbix
