@@ -9,6 +9,7 @@ echo "[-->] Start"
 # Запускаем всё содержимое через sudo bash, чтобы не писать sudo перед каждой командой
     # -q (quiet): "Тихий" режим. Подавляет большинство предупреждений и диагностических сообщений
     # -t (tty): Принудительное выделение псевдо-терминала (TTY). Это необходимо для запуска интерактивных программ на удаленном сервере (например, top, vim или sudo, требующее ввода пароля)
+    # Используются одинарные кавычки в начале EOF, чтобы внутри не нужно было экранировать $
 ssh -q -t -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_SERVER << 'EOF' > /dev/null
     
     # Опция 'set -e' остановит скрипт при любой ошибке (как в Ansible)
@@ -33,7 +34,7 @@ ssh -q -t -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_SERVER << 'EOF' > /de
 
     echo "[+] Установка Zabbix компонентов" >&2
 
-    # Убрана привязку к версии php8.1 для гибкости
+    # Убрана привязка к версии php8.1 для гибкости
     sudo -E apt-get install -y -qq zabbix-server-pgsql zabbix-frontend-php php-pgsql zabbix-apache-conf zabbix-sql-scripts zabbix-agent
 
     echo "[+] Настройка базы данных" >&2
@@ -47,7 +48,6 @@ ssh -q -t -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_SERVER << 'EOF' > /de
 
     echo "[+] Импорт схемы данных" >&2
 
-    # Используем одинарные кавычки в начале EOF (см. выше), тогда внутри не нужно экранировать $
     comm=$(sudo -u postgres psql zabbix -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users');")
     if [[ "$comm" != "t" ]]; then
         zcat /usr/share/zabbix/sql-scripts/postgresql/server.sql.gz | sudo -u zabbix psql zabbix
