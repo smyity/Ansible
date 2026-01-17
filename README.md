@@ -25,7 +25,8 @@ ansible-playbook -i inventory.ini playbook.yml
 ansible-vault create secrets.yml
 ```
 далее ввести пароль
-
+  
+  
 Структура директории:
 ```
 ansible/
