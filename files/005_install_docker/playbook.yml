@@ -1,0 +1,85 @@
+- name: Установка Docker Ubuntu 22.04
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Тест ping
+      ping:
+
+    - name: 1. Обновление cache
+      apt:
+        update_cache: yes
+
+    - name: 2. Создание директории для GPG-ключей APT
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: 3. Скачивание GPG-ключа Docker
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: 4. Получить архитектуру системы
+      set_fact:
+        deb_architecture: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+
+    - name: testing debug
+      ansible.builtin.debug:
+        msg:
+        - "Архитектура ОС: {{ deb_architecture }}"
+        - "Имя дистрибутива: {{ ansible_distribution_release }}"
+
+    - name: 5. Добавить репозиторий Docker
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ deb_architecture }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: 6. Обновление cache
+      apt:
+        update_cache: yes
+
+    - name: 7. Установка Docker
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+
+    - name: testing debug
+      ansible.builtin.debug:
+        msg:
+        - "Пользователь: {{ ansible_user }}"
+
+    - name: 8. Проверка наличия группы docker
+      ansible.builtin.group:
+        name: docker
+        state: present
+      register: group_exist # Регистрация работы модуля
+
+    - name: 9. Добавить текущего пользователя в группу docker
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes # аналог флага -a в системной команде usermod -aG
+      # Добавление пользователя только, если группа docker существует
+      when: group_exist is succeeded
+
+# Если нужно сразу создать контейнер то применить следующий модуль
+#    - name: Обновить SSH-сессию, чтобы применить права групп
+#      ansible.builtin.meta: reset_connection
+#
+#    - name: Создать контейнер (уже без sudo!)
+#      community.docker.docker_container:
+#        name: my_container
+#        image: nginx:latest
+#        state: started
+#
+# Здесь become: yes НЕ НУЖЕН!!! Теперь пользователь в группе docker
