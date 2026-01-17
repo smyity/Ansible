@@ -26,7 +26,7 @@ ansible-vault create secrets.yml
 ```
 далее ввести пароль
   
-  
+
 Структура директории:
 ```
 ansible/
@@ -71,5 +71,26 @@ ansible-vault edit secrets.yml
 [Установка Docker](files/005_install_docker/playbook.yml)
 
 ---
+### ПОЛЕЗНО
+
+- Если нужно протестировать playbook до определенного момента, то мосле нужного модуля можно поставить модуль `- meta: end_play`
+
+```yaml
+- name: Тест
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Тест ping
+      ping:
+
+    - meta: end_play  # Плейбук остановится здесь
+
+    - name: 1. Обновление cache
+      apt:
+        update_cache: yes
+```
+
+Для быстрого комментирования в VS Code можно выделить нужные строки и нажать сочетание клавиш `Ctrl` + `/`. Это своего рода переключатель - так что раскомментировать так же.
 
 [ПРАВИЛА ОФОРМЛЕНИЯ ФАЙЛА README.MD](https://docs.github.com/ru/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)

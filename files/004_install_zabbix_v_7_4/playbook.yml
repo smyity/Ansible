@@ -1,5 +1,5 @@
 - name: Установка Zabbix v7.4 server, agent Ubuntu 22.04
-  hosts: all
+  hosts: server
   become: true
   # Если используется Vault!
   vars_files:
@@ -14,7 +14,7 @@
         update_cache: yes
 
     - name: 2. Установка PostgreSQL
-      ansible.builtin.apt:
+      apt:
         name:
           - postgresql
           - postgresql-contrib
@@ -39,7 +39,7 @@
         update_cache: yes
 
     - name: 6. Установка Zabbix server, frontend, agent
-      ansible.builtin.apt:
+      apt:
         name:
           - zabbix-server-pgsql
           - zabbix-frontend-php
@@ -109,3 +109,66 @@
         - zabbix-server
         - apache2
         - zabbix-agent
+
+- name: Установка Zabbix v7.4 agent Ubuntu 22.04
+  hosts: agent
+  become: true
+
+  tasks:
+    - name: Тест ping
+      ping:
+
+    - name: 1. Обновление cache
+      apt:
+        update_cache: yes
+    
+    - name: 2. Скачивание установочного пакета v 7.4
+      get_url:
+        url: https://repo.zabbix.com/zabbix/7.4/release/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+        dest: /tmp/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+
+    - name: 3. Установка пакета репозитория через dpkg
+      apt:
+        deb: /tmp/zabbix-release_latest_7.4+ubuntu22.04_all.deb
+        state: present
+      register: apt_res
+      failed_when:
+        - apt_res.failed 
+        - "'later version is already installed' not in apt_res.msg"
+
+    - name: 4. Обновление cache
+      apt:
+        update_cache: yes
+
+    - name: 6. Установка Zabbix agent
+      apt:
+        name:
+          - zabbix-agent
+        state: present
+
+    - name: Вывод IP сервера
+      debug:
+        msg: 
+          - "Внешний IP сервера: {{ hostvars[groups['server'][0]]['ansible_host'] }}"
+          - "Имя сервера: {{ groups['server'][0] }}"
+          - "Внутренний IP сервера: {{ hostvars[ groups['server'][0]]['ansible_default_ipv4']['address'] }}"
+
+# !!! ВНИМАНИЕ !!!
+# Если агенты не имеют внешнего IP, то IP сервера должен быть внутренний!!!
+    - name: 7. Настройка адресов Server и ServerActive
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: "^{{ item.key }}=127.0.0.1"
+        line: "{{ item.key }}={{ hostvars[ groups['server'][0]]['ansible_default_ipv4']['address'] }}"
+        state: present
+      loop:
+        - { key: 'Server' }
+        - { key: 'ServerActive' }
+      notify: Restart Zabbix Agent  # Оповещаем, что нужно перезапустить
+
+  handlers:
+    - name: Restart Zabbix Agent
+      systemd:
+        name: zabbix-agent
+        state: restarted
+        enabled: yes
