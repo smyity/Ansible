@@ -64,10 +64,10 @@ ansible-vault edit secrets.yml
 
 -----
 
-- [Установка Kubernetes v1.35 (kubeadm, kubectl, kubelet)](files/001_install_kubernetes_v_1_35/playbook.yml)\
-- [Проверка серверов (Ping)](files/002_ping/playbook.yml)\
-- [Установка Kubernetes v1.35, HELM, инициализация master-node и добавление worker-nodes](files/003_install_kubernetes_v_1_35+kubeinit/playbook.yml)\
-- [Установка Zabbix server v7.4 для Ubuntu 22.04](files/004_install_zabbix_v_7_4/playbook.yml) или использовать [bash-скрипт](files/004_install_zabbix_v_7_4/install_zabbix_serv.sh)\
+- [Установка Kubernetes v1.35 (kubeadm, kubectl, kubelet)](files/001_install_kubernetes_v_1_35/playbook.yml)
+- [Проверка серверов (Ping)](files/002_ping/playbook.yml)
+- [Установка Kubernetes v1.35, HELM, инициализация master-node и добавление worker-nodes](files/003_install_kubernetes_v_1_35+kubeinit/playbook.yml)
+- [Установка Zabbix server v7.4 для Ubuntu 22.04](files/004_install_zabbix_v_7_4/playbook.yml) или использовать [bash-скрипт](files/004_install_zabbix_v_7_4/install_zabbix_serv.sh)
 - [Установка Docker](files/005_install_docker/playbook.yml)
   - [Развертывание мониторинга Grafana, Node Exporter, Prometheus](files/006_deploy_monitoring_in_docker/)
 
@@ -95,14 +95,18 @@ ansible-vault edit secrets.yml
 
 - Для запуска контейнеров через Docker Compose
 > [!WARNING]
-> Перед запуском должна быть установлена коллекция community.docker.\
+> Перед запуском должна быть установлена коллекция community.docker где запускается ansible-playbook.\
 > Команда: `ansible-galaxy collection install community.docker`
 
 ```yaml
-- name: Запуск проекта через Docker Compose
-  community.docker.docker_compose_v2:
-    project_src: путь к docker-compose.yml на сервере
-    state: present
+- name: Тест
+  hosts: all
+
+  tasks:
+    - name: Запуск проекта через Docker Compose
+      community.docker.docker_compose_v2:
+        project_src: путь к docker-compose.yml на сервере
+        state: present
 ```
 
 - Для быстрого комментирования в VS Code можно выделить нужные строки и нажать сочетание клавиш `Ctrl` + `/`. Это своего рода переключатель - так что раскомментировать так же.

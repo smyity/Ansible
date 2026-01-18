@@ -1,6 +1,6 @@
 global:
-  scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  scrape_interval: 15s # Установка интервала сбора данных на каждые 15 секунд. По умолчанию — каждую 1 минуту.
+  evaluation_interval: 15s # Проверка правила каждые 15 секунд. По умолчанию — каждые 1 минуту.
   # scrape_timeout is set to the global default (10s).
 
 alerting:
@@ -28,6 +28,8 @@ scrape_configs:
         labels:
           nodename: 'SERVER'
 
-      - targets: ['178.154.230.244:9100'] # IP удаленного сервера с которого берутся метрики
+{% for host in groups['agent'] %}
+      - targets: ['{{ hostvars[host]['ansible_host'] }}:9100']
         labels:
-          nodename: 'WORKER'
+          nodename: '{{ host }}'
+{% endfor %}
