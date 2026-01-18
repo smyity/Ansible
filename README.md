@@ -92,6 +92,18 @@ ansible-vault edit secrets.yml
         update_cache: yes
 ```
 
+Для запуска контейнеров через Docker Compose
+> [!WARNING]
+> Перед запуском должна быть установлена коллекция community.docker.
+> Команда `ansible-galaxy collection install community.docker`
+
+```yaml
+- name: Запуск проекта через Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: путь к docker-compose.yml на сервере
+    state: present
+```
+
 Для быстрого комментирования в VS Code можно выделить нужные строки и нажать сочетание клавиш `Ctrl` + `/`. Это своего рода переключатель - так что раскомментировать так же.
 
 [ПРАВИЛА ОФОРМЛЕНИЯ ФАЙЛА README.MD](https://docs.github.com/ru/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
