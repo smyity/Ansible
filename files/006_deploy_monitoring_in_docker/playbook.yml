@@ -1,0 +1,18 @@
+- name: Развертывание Docker контейнера
+  hosts: all
+  tasks:
+  
+# !!! Перед запуском установить коллекцию community.docker командой:
+# ansible-galaxy collection install community.docker
+    - name: Запуск контейнера Node Exporter
+      community.docker.docker_container:
+        name: node-exporter
+        image: prom/node-exporter:latest
+        state: started
+        restart_policy: unless-stopped
+        network_mode: host
+        pid_mode: host
+        volumes:
+          - /:/host:ro,rslave
+        command:
+          - --path.rootfs=/host
