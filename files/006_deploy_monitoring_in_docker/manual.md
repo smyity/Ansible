@@ -16,7 +16,7 @@ login: admin
 password: admin
 ```
 
-![](Ansible/pic/MonitoringGrafana002)
+![](https://github.com/smyity/Ansible/blob/main/pic/MonitoringGrafana002.PNG)
 
 **Connections** --> **Data sources** --> **Add data source** --> **Prometheus**
 
@@ -25,16 +25,16 @@ password: admin
 http://prometheus:9090
 ```
 
-![](Ansible/pic/MonitoringGrafana003)
+![](https://github.com/smyity/Ansible/blob/main/pic/MonitoringGrafana003.PNG)
 
 **Dashboards** --> **Create dashboard** --> **Import dashboard**
 
 В поле импорта ID ввести ID нужного шаблона (к примеру **1860**) и нажать **Load** --> **Import**
 
-![](Ansible/pic/MonitoringGrafana004)
+![](https://github.com/smyity/Ansible/blob/main/pic/MonitoringGrafana004.PNG)
 
 Готово!
 
-![](Ansible/pic/MonitoringGrafana005)
+![](https://github.com/smyity/Ansible/blob/main/pic/MonitoringGrafana005.png)
 
 Во вкладке `Nodename` можно переключаться между серверами.
