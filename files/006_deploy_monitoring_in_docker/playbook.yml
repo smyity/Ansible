@@ -19,6 +19,9 @@
         src: docker-compose.yml
         dest: /tmp/prometheus_temp/docker-compose.yml
 
+    - name: Сброс SSH-соединения для обновления групп
+      meta: reset_connection
+
     - name: testing debug
       ansible.builtin.debug:
         msg:
