@@ -95,7 +95,7 @@ ansible-vault edit secrets.yml
 
 - Для запуска контейнеров через Docker Compose
 > [!WARNING]
-> Перед запуском должна быть установлена коллекция community.docker где запускается ansible-playbook.\
+> Перед запуском должна быть установлена коллекция **community.docker** где запускается **ansible-playbook**.\
 > Команда: `ansible-galaxy collection install community.docker`
 
 ```yaml
