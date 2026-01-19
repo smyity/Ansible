@@ -8,7 +8,7 @@
 158.160.98.2:3000
 ```
 
-![](Ansible/pic/MonitoringGrafana001)
+![](pic/MonitoringGrafana001.PNG)
 
 Ввести **login** и **password**:
 ```
