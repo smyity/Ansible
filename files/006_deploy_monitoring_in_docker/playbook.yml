@@ -2,19 +2,19 @@
   hosts: server
 
   tasks:
-    - name: Создание директории для конфигурации Prometheus
+    - name: 1. Создание директории для конфигурации Prometheus
       file:
         path: /tmp/prometheus_temp
         state: directory
         mode: '0755'
 
-    - name: Генерация конфигурации prometheus.yml из шаблона
+    - name: 2. Генерация конфигурации prometheus.yml из шаблона
       template:
         src: prometheus.yml.j2 # Берет файл на локальной машине
         dest: /tmp/prometheus_temp/prometheus.yml  # Копирует на удаленный сервер
       register: prometheus_config
 
-    - name: Копирование docker-compose.yml на сервер
+    - name: 3. Копирование docker-compose.yml на сервер
       copy:
         src: docker-compose.yml
         dest: /tmp/prometheus_temp/docker-compose.yml
@@ -38,7 +38,7 @@
   tasks:
 # !!! Перед запуском установить коллекцию community.docker командой:
 # ansible-galaxy collection install community.docker
-    - name: Запуск контейнера Node Exporter
+    - name: 1. Запуск контейнера Node Exporter
       community.docker.docker_container:
         name: node-exporter
         image: prom/node-exporter:latest
