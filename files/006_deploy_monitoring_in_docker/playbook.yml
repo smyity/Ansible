@@ -27,7 +27,7 @@
         msg:
         - "Пользователь: {{ ansible_user }}"
 
-    - name:
+    - name: Запуск docker-compose.yml на сервере
       community.docker.docker_compose_v2:
         project_src: /tmp/prometheus_temp/
         state: present
