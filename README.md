@@ -92,7 +92,9 @@ ansible-vault edit secrets.yml
       apt:
         update_cache: yes
 ```
-  <br/>
+
+<br/>
+<br/>
 
 :pushpin: Для запуска контейнеров через Docker Compose
 > [!WARNING]
@@ -110,8 +112,13 @@ ansible-vault edit secrets.yml
         state: present
 ```
 
+<br/>
+<br/>
+
 :pushpin: Для быстрого комментирования в VS Code можно выделить нужные строки и нажать сочетание клавиш `Ctrl` + `/`. Это своего рода переключатель - так что раскомментировать так же.
 
+<br/>
+<br/>
 
 :pushpin: Применение условия **notify** + **handler**. Оно сработает только если файл реально изменился. Если файл уже на месте и он правильный, перезагрузки не будет.
 
@@ -151,6 +158,9 @@ ansible-vault edit secrets.yml
         state: restarted
 ```
 
+<br/>
+<br/>
+
 :pushpin: Можно сделать условие с использованием **register**:
 
 ```yml
@@ -178,6 +188,9 @@ ansible-vault edit secrets.yml
       when: cookie_status.changed # Ждем только если был рестарт
 ```
 
+<br/>
+<br/>
+
 :pushpin: Задать условия при которых статус модуля будет считаться `failed`
 
 ```yml
@@ -199,12 +212,18 @@ ansible-vault edit secrets.yml
 
 `<register>.stderr` - вывод из потока ошибок
 
-- Условие выполнения:
+<br/>
+<br/>
+
+:pushpin: Условие выполнения:
 
 ```yml
 when: inventory_hostname == user_x.changed
 ```
 Это означает, что модуль запустится если статус `register: user_x` будет `changed`
+
+<br/>
+<br/>
 
 :pushpin: **Синтаксис условий**:
 
@@ -215,6 +234,9 @@ when: inventory_hostname == user_x.changed
 `or` — логическое ИЛИ (вместо ||)
 
 `not` — отрицание (вместо !)
+
+<br/>
+<br/>
 
 :pushpin: Увидеть все переменные хоста:
 
