@@ -92,7 +92,7 @@ ansible-vault edit secrets.yml
       apt:
         update_cache: yes
 ```
-\
+ \
 
 :pushpin: Для запуска контейнеров через Docker Compose
 > [!WARNING]
