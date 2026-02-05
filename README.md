@@ -93,6 +93,8 @@ ansible-vault edit secrets.yml
         update_cache: yes
 ```
 
+-----
+
 - Для запуска контейнеров через Docker Compose
 > [!WARNING]
 > Перед запуском должна быть установлена коллекция **community.docker** где запускается **ansible-playbook**.\
@@ -109,7 +111,131 @@ ansible-vault edit secrets.yml
         state: present
 ```
 
+-----
+
 - Для быстрого комментирования в VS Code можно выделить нужные строки и нажать сочетание клавиш `Ctrl` + `/`. Это своего рода переключатель - так что раскомментировать так же.
+
+-----
+
+- Применение условия **notify** + **handler**. Оно сработает только если файл реально изменился. Если файл уже на месте и он правильный, перезагрузки не будет.
+
+Так же можно использовать модуль, который будет принудительно использовать **handlers** (*перезапускать приложение*) сразу же, а не в конце сценария.
+
+```yml
+    - name: Distribute cookie to others
+      ansible.builtin.copy:
+        src: "./temp_cookie"
+        dest: "{{ item }}"
+        owner: rabbitmq
+        group: rabbitmq
+        mode: '0400'
+      loop: ["/var/lib/rabbitmq/.erlang.cookie", "/root/.erlang.cookie"]
+      notify: Restart RabbitMQ
+
+    - name: Принудительно использовать handlers прямо сейчас
+      ansible.builtin.meta: flush_handlers
+
+    - name: Create admin user
+      community.rabbitmq.rabbitmq_user:
+        user: "{{ rabbit_user }}"
+        password: "{{ rabbit_pass }}"
+        tags: administrator
+        permissions:
+          - vhost: "/"
+            configure_priv: ".*"
+            write_priv: ".*"
+            read_priv: ".*"
+        state: present
+      when: inventory_hostname == primary_node
+
+  handlers:
+    - name: Restart RabbitMQ
+      ansible.builtin.service:
+        name: rabbitmq-server
+        state: restarted
+```
+
+-----
+
+- можно использовать условие с использованием **register**:
+
+```yml
+    - name: Копирование файла cookie
+      ansible.builtin.copy:
+        src: "./temp_cookie"
+        dest: /var/lib/rabbitmq/.erlang.cookie
+        owner: rabbitmq
+        group: rabbitmq
+        mode: '0400'
+      register: cookie_status # Регистрируем результат: изменился файл или нет
+
+    - name: Перезапуск RabbitMQ (только если куки обновился)
+      ansible.builtin.systemd:
+        name: rabbitmq-server
+        state: restarted
+      when: cookie_status.changed
+
+    - name: Ожидание готовности RabbitMQ
+      ansible.builtin.wait_for:
+        port: 5672
+        host: "{{ ansible_host }}"
+        delay: 5
+        timeout: 60
+      when: cookie_status.changed # Ждем только если был рестарт
+```
+
+-----
+
+- Задать условия при которых статус модуля будет считаться `failed`
+
+```yml
+    - name: Добавление в кластер
+      shell: |
+        rabbitmqctl stop_app
+        rabbitmqctl join_cluster rabbit@{{ master_node }}
+        rabbitmqctl start_app
+      when: inventory_hostname != master_node
+      register: cluster_join
+      failed_when: 
+        - cluster_join.rc != 0 # Return Code (код возврата)
+        - "'already_member' not in cluster_join.stderr" # Специфическая строка которую RabbitMQ выдает в консоль (stderr), если пытаться добавить узел в кластер, в котором он уже состоит
+```
+
+Где:
+
+`<register>.rc` - вывод кода возврата
+
+`<register>.stderr` - вывод из потока ошибок
+
+- Условие выполнения:
+
+```yml
+when: inventory_hostname == user_x.changed
+```
+Это означает, что модуль запустится если статус `register: user_x` будет `changed`
+
+-----
+
+- **Синтаксис условий**:
+
+Логические операторы:
+
+`and` — логическое И (вместо &&)
+
+`or` — логическое ИЛИ (вместо ||)
+
+`not` — отрицание (вместо !)
+
+-----
+
+Увидеть все переменные хоста:
+
+```yml
+  tasks:
+    - name: Просмотр всех доступных данных (Magic) хоста
+      debug:
+        var: hostvars[inventory_hostname]
+```
 
 ---
 
