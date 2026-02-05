@@ -18,7 +18,7 @@ ansible-playbook -i inventory.ini playbook.yml
 ```
 -----
 
-### Vault
+### Vault :lock:
 
 В директории с **playbook.yml** создать файл **secrets.yml** с помощью команды:
 ```
