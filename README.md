@@ -72,9 +72,9 @@ ansible-vault edit secrets.yml
   - [Развертывание мониторинга Grafana, Node Exporter, Prometheus](files/006_deploy_monitoring_in_docker/playbook.yml) + [manual](files/006_deploy_monitoring_in_docker/manual.md) по настройке
 
 ---
-### ПОЛЕЗНО
+# ПОЛЕЗНО
 
-- Если нужно протестировать playbook до определенного момента, то после нужного модуля можно поставить модуль:\
+:pushpin: Если нужно протестировать playbook до определенного момента, то после нужного модуля можно поставить модуль:\
   `- meta: end_play`
 
 ```yaml
@@ -93,9 +93,7 @@ ansible-vault edit secrets.yml
         update_cache: yes
 ```
 
----
-
-- Для запуска контейнеров через Docker Compose
+:pushpin: Для запуска контейнеров через Docker Compose
 > [!WARNING]
 > Перед запуском должна быть установлена коллекция **community.docker** где запускается **ansible-playbook**.\
 > Команда: `ansible-galaxy collection install community.docker`
