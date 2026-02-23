@@ -1,5 +1,5 @@
 - name: Install Kubernetes cluster for NODs
-  hosts: serv
+  hosts: all
   become: true
 
   tasks:
