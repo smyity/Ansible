@@ -23,6 +23,12 @@
         name: [software-properties-common, curl]
         state: present
 
+    - name: Remove containerd to avoid CRI conflict
+      ansible.builtin.apt:
+        name: [containerd, containerd.io]
+        state: absent
+        purge: yes
+
     - name: Add repo Kubernetes (v1.35)
       ansible.builtin.deb822_repository:
         name: kubernetes
