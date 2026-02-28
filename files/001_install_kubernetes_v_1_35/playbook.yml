@@ -1,12 +1,13 @@
-- name: Install Kubernetes cluster for NODs
+- name: Install Kubernetes cluster with containerd for NODs
   hosts: all
   become: true
+  gather_facts: true
 
   tasks:
-    - name: tast ping
+    - name: 005 Test ping
       ping:
 
-    - name: switch IP forwarding
+    - name: 010 Switch IP forwarding
       ansible.posix.sysctl:
         name: net.ipv4.ip_forward
         value: '1'
@@ -14,96 +15,156 @@
         state: present
         reload: true
 
-    - name: Update cache
+    - name: 015 Ensure IP forwarding is persistent
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^net.ipv4.ip_forward'
+        line: 'net.ipv4.ip_forward = 1'
+        state: present
+
+    - name: 020 Update cache
       apt:
         update_cache: yes
 
-    - name: Set depends for add repo
+    - name: 025 Set dependencies for add repo
       ansible.builtin.apt:
-        name: [software-properties-common, curl]
+        name: [software-properties-common, curl, ca-certificates]
         state: present
 
-    - name: Remove containerd to avoid CRI conflict
+    - name: 030 Remove CRI-O and Docker to avoid conflicts
       ansible.builtin.apt:
-        name: [containerd, containerd.io]
+        name: [cri-o, docker, docker.io]
         state: absent
         purge: yes
 
-    - name: Add repo Kubernetes (v1.35)
+    - name: 035 Add repo Kubernetes (v1.35)
       ansible.builtin.deb822_repository:
         name: kubernetes
         types: [deb]
         uris: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/"
         suites: [/]
-        signed_by: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key" # Сохраняет ключ в надежное место (обычно /etc/apt/keyrings/<name>.gpg или внутри самого файла .sources)
+        signed_by: "https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key"
         state: present
         enabled: true
 
-    - name: Add repo CRI-O (v1.35) # источник для deb пакетов https://kubernetes.io/blog/2023/10/10/cri-o-community-package-infrastructure/#deb-based-distributions
+    - name: 036 Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: 037 Download Docker's GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: 038 Determine Ubuntu codename
+      shell: |
+        . /etc/os-release
+        echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}"
+      register: ubuntu_codename # link_01
+      changed_when: false
+
+    - name: 039 Add Docker repository to Apt sources
       ansible.builtin.deb822_repository:
-        name: CRI-O
+        name: docker
         types: [deb]
-        uris: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/"
-        suites: [/]
-        signed_by: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.35/deb/Release.key"
+        uris: "https://download.docker.com/linux/ubuntu"
+        suites: "{{ ubuntu_codename.stdout }}" # link_01 Кодовое имя дистрибутива
+        components: [stable]
+        signed_by: "https://download.docker.com/linux/ubuntu/gpg"
         state: present
         enabled: true
 
-    - name: Install kubeadm
-      ansible.builtin.apt:
-        name: [apt-transport-https, ca-certificates, gpg, kubelet, kubeadm, kubectl, cri-o]
-        state: present
-        update_cache: yes # sudo apt update
+    - name: 040 Update cache
+      apt:
+        update_cache: yes
 
-    - name: Fix Kubernetes packages version
+    - name: 041 Install containerd
+      ansible.builtin.apt:
+        name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
+        state: present
+        update_cache: yes
+
+# Инструкция:
+# https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd
+    - name: 042 Del dir /etc/containerd if exist
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: absent
+
+    - name: 045 Configure containerd
+      block:
+        - name: Create containerd config directory
+          file:
+            path: /etc/containerd
+            state: directory
+
+        - name: Generate default containerd config
+          command: containerd config default
+          args:
+            creates: /etc/containerd/config.toml
+          register: config_result
+
+        - name: Save containerd config
+          copy:
+            content: "{{ config_result.stdout }}"
+            dest: /etc/containerd/config.toml
+
+        - name: Enable systemd cgroup driver for containerd
+          replace:
+            path: /etc/containerd/config.toml
+            regexp: 'SystemdCgroup = false'
+            replace: 'SystemdCgroup = true'
+          when: ansible_os_family == "Debian"
+
+    - name: 050 Start and enable containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: true
+
+    - name: 055 Install Kubernetes components
+      ansible.builtin.apt:
+        name: [apt-transport-https, gpg, kubelet, kubeadm, kubectl]
+        state: present
+        update_cache: yes
+      # Добавление параметра retries
+      register: apt_res
+      until: apt_res is success
+      retries: 5
+      delay: 10
+
+    - name: 060 Fix Kubernetes packages version
       ansible.builtin.dpkg_selections:
         name: "{{ item }}"
         selection: hold
-      loop: [kubelet, kubeadm, kubectl, cri-o]
+      loop: [kubelet, kubeadm, kubectl]
 
-    - name: Ensure CRI-O is started and enabled
-      ansible.builtin.systemd:
-        name: crio
-        state: started
-        enabled: true
-
-    - name: Switch off Swap now
-      ansible.builtin.command: swapoff -a
+    - name: 065 Disable swap now
+      command: swapoff -a
       when: ansible_swaptotal_mb > 0
+      ignore_errors: true  # Продолжть даже если swap уже отключён
 
-    - name: Del Swap in fstab (forever)
-      ansible.builtin.replace:
+    - name: 070 Comment out swap in fstab (if present)
+      replace:
         path: /etc/fstab
         regexp: '^([^#].*?\sswap\s+.*)$'
         replace: '# \1'
+      when: ansible_swaptotal_mb > 0  # Изменение только если swap был обнаружен
 
-    - name: Load core modules now
+    - name: 075 Load and persist core modules
       community.general.modprobe:
         name: "{{ item }}"
         state: present
+        persistent: present 
       loop:
         - br_netfilter
         - overlay
 
-    - name: Set autoload modules
-      ansible.builtin.copy:
-        dest: /etc/modules-load.d/k8s.conf
-        content: |
-          overlay
-          br_netfilter
-        mode: '0644'
-
-    - name: launch and swich on CRI-O
-      ansible.builtin.systemd:
-        name: crio
+    - name: 080 Ensure kubelet is started and enabled
+      systemd:
+        name: kubelet
         state: started
         enabled: true
-        masked: false
-
-# Далее:
-# 1. (master-node) Установить Flannel на мастере
-#     kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-#
-# 2. (master-node) Выполнить команду для присоединения worker-node: kubeadm token create --print-join-command
-#
-# 3. (worker-node) Выполнить команду которую выдал master: kubeadm join 10.x.x.x:6443 --token 0qd7...
